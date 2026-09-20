@@ -142,109 +142,91 @@ export default function Home() {
   // Two-phase flow: null = onboarding, Profile = dashboard
   const [profile, setProfile] = useState<Profile | null>(null);
   const [draft, setDraft] = useState<Profile>(EMPTY_DRAFT);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   // Dashboard state
   const [tab, setTab] = useState("Career map");
   const [done, setDone] = useState<string[]>([]);
   const [matchReport, setMatchReport] = useState<MatchReport | null>(null);
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // ── Draft handlers (onboarding form) ───────────────────────────────────────
 
   const updateDraft = (key: keyof Profile, value: string) => {
-    setDraft((current) => ({ ...current, [key]: value }));
-    if (formErrors[key]) {
-      setFormErrors((current) => ({ ...current, [key]: "" }));
-    }
+    setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
   const chooseResume = async (file: File | null) => {
     if (!file) return;
-    setResumeFile(file);
     updateDraft("resume", file.name);
-    // Read as text for text-based formats; binary formats are sent as-is via FormData
-    if (file.type === "text/plain" || file.name.endsWith(".txt")) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        setDraft((prev) => ({ ...prev, resumeText: text }));
-      };
-      reader.readAsText(file);
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setDraft((prev) => ({ ...prev, resumeText: text }));
+    };
+    reader.readAsText(file);
   };
 
   const validateDraft = (): boolean => {
-    const errors: Record<string, string> = {};
-    if (!draft.name.trim()) errors.name = "Add your full name to personalize your passport.";
-    if (!draft.target.trim()) errors.target = "Add the role you want to compare your resume with.";
-    if (draft.applicationLink && !/^https?:\/\//i.test(draft.applicationLink)) {
-      errors.applicationLink = "Use a complete link beginning with https://.";
-    }
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    const newErrors: Record<string, string> = {};
+    if (!draft.name.trim()) newErrors.name = "Please enter your full name";
+    if (!draft.target.trim()) newErrors.target = "Please enter your target U.S. role";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const translateResume = async (
-    nextProfile: Profile,
-    file: File | null = resumeFile,
-  ) => {
+  const generate = async () => {
+    if (!validateDraft()) return;
+
+    const committed = { ...draft };
+    setProfile(committed);
+    setTab("Career map");
+    setIsGenerating(true);
     setIsTranslating(true);
+
     try {
-      let body: BodyInit;
-      let headers: HeadersInit = {};
-      if (file) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("profile", JSON.stringify(nextProfile));
-        body = fd;
-      } else {
-        body = JSON.stringify(nextProfile);
-        headers = { "Content-Type": "application/json" };
-      }
       const response = await fetch("/api/translate-resume", {
         method: "POST",
-        headers,
-        body,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(committed),
       });
       const data = await response.json();
       if (data.resume) setGeneratedResume(data.resume);
       if (data.match) setMatchReport(data.match);
+      // If API returns a combined object
       if (data.score !== undefined) setMatchReport(data);
     } catch {
-      console.error("Translation failed");
+      // Non-fatal: user still gets the dashboard, they can retry
+      console.error("Generation failed");
     } finally {
+      setIsGenerating(false);
       setIsTranslating(false);
     }
-  };
-
-  const generate = () => {
-    if (!validateDraft()) return;
-    const committed = { ...draft };
-    setProfile(committed);
-    setTab("Resume translator");
-    void translateResume(committed, resumeFile);
   };
 
   // ── Profile handlers (dashboard) ───────────────────────────────────────────
 
   const updateProfile = (key: keyof Profile, value: string) => {
     setProfile((prev) => prev ? { ...prev, [key]: value } : prev);
-    if (formErrors[key]) setFormErrors((prev) => ({ ...prev, [key]: "" }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setResumeFile(file);
-    updateProfile("resume", file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      updateProfile("resume", content);
+    };
+    reader.readAsText(file);
   };
 
   const toggle = (step: string) => {
-    setDone((current) =>
-      current.includes(step) ? current.filter((item) => item !== step) : [...current, step]
+    setDone((prev) =>
+      prev.includes(step) ? prev.filter((s) => s !== step) : [...prev, step]
     );
   };
 
@@ -351,8 +333,8 @@ export default function Home() {
             <div className="form-grid">
               <label>
                 Full name
-                {formErrors.name && (
-                  <span role="alert" className="error-message">{formErrors.name}</span>
+                {errors.name && (
+                  <span role="alert" className="error-message">{errors.name}</span>
                 )}
                 <input
                   id="full-name"
@@ -361,10 +343,10 @@ export default function Home() {
                   value={draft.name}
                   onChange={(e) => updateDraft("name", e.target.value)}
                   placeholder="e.g. Aisha Khan"
-                  aria-invalid={!!formErrors.name}
-                  aria-describedby={formErrors.name ? undefined : "full-name-hint"}
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? undefined : "full-name-hint"}
                 />
-                {!formErrors.name && <small id="full-name-hint">Your full professional name</small>}
+                {!errors.name && <small id="full-name-hint">Your full professional name</small>}
               </label>
 
               <label>
@@ -425,8 +407,8 @@ export default function Home() {
 
               <label>
                 Target U.S. profession
-                {formErrors.target && (
-                  <span role="alert" className="error-message">{formErrors.target}</span>
+                {errors.target && (
+                  <span role="alert" className="error-message">{errors.target}</span>
                 )}
                 <input
                   id="target-profession"
@@ -434,15 +416,12 @@ export default function Home() {
                   value={draft.target}
                   onChange={(e) => updateDraft("target", e.target.value)}
                   placeholder="e.g. Software Engineer"
-                  aria-invalid={!!formErrors.target}
+                  aria-invalid={!!errors.target}
                 />
               </label>
 
               <label>
                 Job application link <span>(optional)</span>
-                {formErrors.applicationLink && (
-                  <span role="alert" className="error-message">{formErrors.applicationLink}</span>
-                )}
                 <input
                   id="application-link"
                   name="applicationLink"
@@ -450,7 +429,6 @@ export default function Home() {
                   value={draft.applicationLink}
                   onChange={(e) => updateDraft("applicationLink", e.target.value)}
                   placeholder="https://company.com/jobs/role"
-                  aria-invalid={!!formErrors.applicationLink}
                 />
               </label>
             </div>
@@ -496,12 +474,12 @@ export default function Home() {
 
             <button
               className="generate-button"
-              disabled={!draft.name || !draft.target || isTranslating}
+              disabled={!draft.name || !draft.target || isGenerating}
               onClick={generate}
               aria-label="Generate your Career Passport resume and job match"
-              aria-busy={isTranslating}
+              aria-busy={isGenerating}
             >
-              {isTranslating ? "Generating…" : "Generate my career passport"}
+              {isGenerating ? "Generating…" : "Generate my career passport"}
             </button>
           </div>
 
@@ -872,7 +850,7 @@ export default function Home() {
                 )}
               </div>
 
-              {isTranslating && (
+              {isGenerating && (
                 <div className="loading-state" role="status" aria-live="polite">
                   <span aria-hidden="true">⟳</span>
                   <span>Translating your resume…</span>
@@ -983,7 +961,7 @@ export default function Home() {
                 </>
               )}
 
-              {!generatedResume && !isTranslating && (
+              {!generatedResume && !isGenerating && (
                 <p className="panel-lede" style={{ marginTop: "24px" }}>
                   No translation yet. Return to the onboarding screen and generate your career passport.
                 </p>
