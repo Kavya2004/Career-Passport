@@ -92,10 +92,9 @@ function buildMatch(profile: Profile, jobText = "") {
   ].filter(Boolean);
   const steps = [
     !profile.resume ? "Upload your source resume for a document-level review." : "Rewrite the strongest experience bullets around action, scope, tools, and measurable results.",
-    "Check the Education section against the template: degree, institution, dates, and relevant details should be easy to scan.",
-    "Check the Experience section: each role should show title, employer, dates, and concise evidence-based bullets.",
-    "Add Leadership & Activities only when you can support the entry with a real organization, responsibility, or result.",
-    ...(jobText ? ["Compare the final resume with the job posting again and add only supported requirements that are still missing."] : ["Add an application link to compare your resume against a specific job posting."]),
+    ...missingKeywords.slice(0, 3).map((keyword) => `Add truthful evidence for “${keyword}” from your experience, then place it in the most relevant resume section.`),
+    `Check the Experience section for ${profile.target || "your target role"}: each role should show responsibilities, tools, and outcomes supported by your resume.`,
+    ...(jobText ? [`Compare the final resume with the ${profile.target || "target role"} posting again and address only requirements still missing.`, "Review the Education and Leadership & Activities sections for accurate, role-relevant supporting details."] : ["Add an application link to compare your resume against a specific job posting."]),
   ];
   const score = jobText
     ? Math.max(25, Math.min(95, 40 + matchedKeywords.length * 8 - missing.length * 4))

@@ -1,0 +1,11 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Career Passport mark</title>
+  <desc id="desc">A passport and resume mark with CP initials, document lines, and a route star.</desc>
+  <rect x="13" y="17" width="65" height="65" rx="14" transform="rotate(-7 13 17)" fill="#C96F5D"/>
+  <rect x="9" y="9" width="65" height="65" rx="14" transform="rotate(-7 9 9)" fill="#F1C85B" stroke="#173B45" stroke-width="2"/>
+  <path d="M22 19L29 68" stroke="#173B45" stroke-width="2" stroke-linecap="round" opacity=".35"/>
+  <text x="32" y="46" fill="#173B45" font-family="Georgia, serif" font-size="25" font-weight="700" letter-spacing="-2">CP</text>
+  <path d="M32 53H57M33 58H53M34 63H48" stroke="#173B45" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+  <path d="M57 25C66 28 68 36 65 43" stroke="#173B45" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3" opacity=".7"/>
+  <path d="M66 20L68 24L72 26L68 28L66 32L64 28L60 26L64 24L66 20Z" fill="#173B45"/>
+</svg>

@@ -1,0 +1,27 @@
+<svg width="560" height="300" viewBox="0 0 560 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Professionals building their next career chapter</title>
+  <desc id="desc">A nurse, designer, engineer, and teacher gathered around a Career Passport resume document.</desc>
+  <path d="M25 245C108 218 156 265 237 239C324 211 391 247 535 216" stroke="#B8CFC8" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 10"/>
+  <path d="M66 81L85 48L104 81" stroke="#C96F5D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M93 55L104 81" stroke="#F1C85B" stroke-width="7" stroke-linecap="round"/>
+  <rect x="214" y="68" width="151" height="108" rx="7" transform="rotate(-4 214 68)" fill="#FFFDF5" stroke="#173B45" stroke-width="2"/>
+  <path d="M237 97L328 91M237 111L317 106M237 125L302 121" stroke="#89AAA3" stroke-width="4" stroke-linecap="round"/>
+  <path d="M236 145L278 142" stroke="#C96F5D" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="331" cy="143" r="15" fill="#F1C85B" stroke="#173B45" stroke-width="2"/>
+  <path d="M327 143L331 147L338 138" stroke="#173B45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="151" cy="127" r="24" fill="#C9826E"/>
+  <path d="M118 205C119 169 132 153 151 153C170 153 184 169 185 205" fill="#E7A98B" stroke="#173B45" stroke-width="2"/>
+  <path d="M126 118C132 91 171 91 177 119C163 110 143 110 126 118Z" fill="#173B45"/>
+  <path d="M168 163L178 179L168 193" stroke="#FFFDF5" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="420" cy="123" r="24" fill="#6D9E9A"/>
+  <path d="M385 207C387 171 400 151 420 151C440 151 453 171 455 207" fill="#F1C85B" stroke="#173B45" stroke-width="2"/>
+  <path d="M398 113C401 89 439 88 445 115C430 106 413 106 398 113Z" fill="#173B45"/>
+  <rect x="440" y="170" width="31" height="25" rx="3" transform="rotate(8 440 170)" fill="#C96F5D"/>
+  <path d="M448 177L460 179M447 184L457 186" stroke="#FFFDF5" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="285" cy="211" r="21" fill="#9B6E58"/>
+  <path d="M253 260C256 229 267 213 285 213C303 213 315 229 318 260" fill="#D9D4E8" stroke="#173B45" stroke-width="2"/>
+  <path d="M263 201C269 179 302 178 308 201C293 193 278 193 263 201Z" fill="#173B45"/>
+  <path d="M303 230L328 238L316 250L296 242" fill="#FFFDF5" stroke="#173B45" stroke-width="2"/>
+  <path d="M467 56L471 66L481 70L471 74L467 84L463 74L453 70L463 66L467 56Z" fill="#C96F5D"/>
+  <path d="M193 42L196 49L203 52L196 55L193 62L190 55L183 52L190 49L193 42Z" fill="#F1C85B"/>
+</svg>

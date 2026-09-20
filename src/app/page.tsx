@@ -1,15 +1,16 @@
-// Updated page.tsx with accessibility enhancements
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
-  AlignmentType,
   Document,
   HeadingLevel,
   Packer,
   Paragraph,
   TextRun,
 } from "docx";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Profile = {
   name: string;
@@ -66,24 +67,25 @@ type GeneratedResume = {
   note: string;
 };
 
-// Helper functions remain the same
+// ─── Helper functions ─────────────────────────────────────────────────────────
+
 function getSteps(profile: Profile) {
   const regulated = /nurse|doctor|teacher|accountant|engineer/i.test(profile.target);
   return regulated
     ? [
-        ["Credential evaluation", `Review your ${profile.field || "international"} education with an approved service.`],
-        ["Verify role requirements", `Check current requirements for ${profile.target}.`],
-        ["Gather supporting documents", "Collect transcripts, experience records, and identification documents."],
-        ["Complete required examinations", `Complete any examinations required for ${profile.target}.`],
-        ["Apply or prepare for roles", "Submit applications using your translated experience and verified documents."],
-      ]
+      ["Credential evaluation", `Review your ${profile.field || "international"} education with an approved service.`],
+      ["Verify role requirements", `Check current requirements for ${profile.target}.`],
+      ["Gather supporting documents", "Collect transcripts, experience records, and identification documents."],
+      ["Complete required examinations", `Complete any examinations required for ${profile.target}.`],
+      ["Apply or prepare for roles", "Submit applications using your translated experience and verified documents."],
+    ]
     : [
-        ["Translate your credentials", "Organize your education and experience in U.S. employer language."],
-        ["Review target role requirements", `Compare your background with ${profile.target || "target role"} postings.`],
-        ["Strengthen one skill gap", "Choose one missing or unclear requirement to clarify or develop."],
-        ["Prepare your applications", "Use your translated resume and evidence when applying."],
-        ["Track your progress", "Save applications, conversations, and next actions in one place."],
-      ];
+      ["Translate your credentials", "Organize your education and experience in U.S. employer language."],
+      ["Review target role requirements", `Compare your background with ${profile.target || "target role"} postings.`],
+      ["Strengthen one skill gap", "Choose one missing or unclear requirement to clarify or develop."],
+      ["Prepare your applications", "Use your translated resume and evidence when applying."],
+      ["Track your progress", "Save applications, conversations, and next actions in one place."],
+    ];
 }
 
 function getEvidence(profile: Profile) {
@@ -99,7 +101,7 @@ function getEvidence(profile: Profile) {
 
 function getResources(profile: Profile): Resource[] {
   const role = `${profile.target} ${profile.field}`.toLowerCase();
-  const resources: Resource[] = [
+  return [
     {
       title: "Credential Evaluation Services",
       description: "World Education Services (WES) or similar",
@@ -119,93 +121,136 @@ function getResources(profile: Profile): Resource[] {
       reason: "Search for open positions matching your profile",
     },
   ];
-  return resources;
 }
 
-// Accessible version of the main component
-export default function Home() {
-  const [currentTab, setCurrentTab] = useState<string>("Profile");
-  const [profile, setProfile] = useState<Profile>({
-    name: "",
-    country: "",
-    degree: "",
-    field: "",
-    experience: "",
-    title: "",
-    target: "",
-    applicationLink: "",
-    sourceLanguage: "English",
-    resume: "",
-  });
+const EMPTY_DRAFT: Profile = {
+  name: "",
+  country: "",
+  degree: "",
+  field: "",
+  experience: "",
+  title: "",
+  target: "",
+  applicationLink: "",
+  sourceLanguage: "auto",
+  resume: "",
+};
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function Home() {
+  // Two-phase flow: null = onboarding, Profile = dashboard
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [draft, setDraft] = useState<Profile>(EMPTY_DRAFT);
+
+  // Dashboard state
+  const [tab, setTab] = useState("Career map");
+  const [done, setDone] = useState<string[]>([]);
   const [matchReport, setMatchReport] = useState<MatchReport | null>(null);
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [done, setDone] = useState<string[]>([]);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Form validation
-  const validateForm = (): boolean => {
+  // ── Draft handlers (onboarding form) ───────────────────────────────────────
+
+  const updateDraft = (key: keyof Profile, value: string) => {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const chooseResume = async (file: File | null) => {
+    if (!file) return;
+    updateDraft("resume", file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setDraft((prev) => ({ ...prev, resumeText: text }));
+    };
+    reader.readAsText(file);
+  };
+
+  const validateDraft = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!profile.country) newErrors.country = "Please select your country";
-    if (!profile.degree) newErrors.degree = "Please enter your degree name";
-    if (!profile.target) newErrors.target = "Please select your target role";
+    if (!draft.name.trim()) newErrors.name = "Please enter your full name";
+    if (!draft.target.trim()) newErrors.target = "Please enter your target U.S. role";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const updateProfile = (key: keyof Profile, value: string) => {
-    setProfile({ ...profile, [key]: value });
-    // Clear error when user starts typing
-    if (errors[key]) {
-      setErrors({ ...errors, [key]: "" });
-    }
-  };
+  const generate = async () => {
+    if (!validateDraft()) return;
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        updateProfile("resume", content);
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const generateMatch = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
+    const committed = { ...draft };
+    setProfile(committed);
+    setTab("Career map");
     setIsGenerating(true);
+    setIsTranslating(true);
+
     try {
       const response = await fetch("/api/translate-resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify(committed),
       });
       const data = await response.json();
-      setMatchReport(data);
-    } catch (error) {
-      setErrors({ submit: "Error generating career match. Please try again." });
+      if (data.resume) setGeneratedResume(data.resume);
+      if (data.match) setMatchReport(data.match);
+      // If API returns a combined object
+      if (data.score !== undefined) setMatchReport(data);
+    } catch {
+      // Non-fatal: user still gets the dashboard, they can retry
+      console.error("Generation failed");
     } finally {
       setIsGenerating(false);
+      setIsTranslating(false);
     }
   };
 
-  const downloadResume = async () => {
-    if (!generatedResume) return;
+  // ── Profile handlers (dashboard) ───────────────────────────────────────────
 
+  const updateProfile = (key: keyof Profile, value: string) => {
+    setProfile((prev) => prev ? { ...prev, [key]: value } : prev);
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: "" }));
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      updateProfile("resume", content);
+    };
+    reader.readAsText(file);
+  };
+
+  const toggle = (step: string) => {
+    setDone((prev) =>
+      prev.includes(step) ? prev.filter((s) => s !== step) : [...prev, step]
+    );
+  };
+
+  const downloadResume = async (resume: GeneratedResume, name: string) => {
     const doc = new Document({
       sections: [
         {
           children: [
-            new Paragraph({
-              text: generatedResume.headline,
-              heading: HeadingLevel.HEADING_1,
-            }),
+            new Paragraph({ text: name, heading: HeadingLevel.HEADING_1 }),
+            new Paragraph({ text: resume.headline }),
+            ...(resume.summary
+              ? [
+                new Paragraph({ text: "Professional Summary", heading: HeadingLevel.HEADING_2 }),
+                new Paragraph({ text: resume.summary }),
+              ]
+              : []),
+            ...resume.experience.flatMap((exp) => [
+              new Paragraph({ text: exp.title, heading: HeadingLevel.HEADING_3 }),
+              new Paragraph({ children: [new TextRun({ text: `${exp.company} · ${exp.dates}`, italics: true })] }),
+              ...exp.bullets.map((b) => new Paragraph({ text: `• ${b}` })),
+            ]),
+            new Paragraph({ text: "Skills", heading: HeadingLevel.HEADING_2 }),
+            new Paragraph({ text: resume.skills.join(", ") }),
+            new Paragraph({ text: resume.note }),
           ],
         },
       ],
@@ -215,67 +260,319 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "career-passport-resume.docx";
+    a.download = `${name.replace(/\s+/g, "-").toLowerCase()}-career-passport.docx`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const toggle = (step: string) => {
-    setDone((prev) =>
-      prev.includes(step) ? prev.filter((s) => s !== step) : [...prev, step]
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ONBOARDING PHASE (profile === null)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  if (!profile) {
+    return (
+      <main className="onboarding">
+        <div className="onboarding-top">
+          <div className="brand onboarding-brand">
+            <Image
+              className="brand-logo"
+              src="/career-passport-mark.svg"
+              alt=""
+              width={42}
+              height={42}
+              priority
+            />
+            <span>CAREER PASSPORT</span>
+          </div>
+          <span className="passport-motto">FIELD NOTES FOR YOUR NEXT CHAPTER</span>
+          <span className="onboarding-note">PRIVATE BY DESIGN · YOUR DATA STAYS YOURS</span>
+        </div>
+
+        <div className="mini-graphics" aria-hidden="true">
+          <span className="mini-star mini-star-one">✦</span>
+          <span className="mini-star mini-star-two">✧</span>
+          <span className="mini-stamp">CV</span>
+          <span className="mini-pin" />
+          <span className="mini-paper"><i /><i /><i /></span>
+          <span className="mini-arrow">↗</span>
+          <span className="mini-diploma">✧</span>
+          <span className="mini-briefcase"><i /></span>
+          <span className="mini-doc-card"><i /><i /><b /></span>
+          <span className="mini-waypoint" />
+        </div>
+
+        <section className="onboarding-content" aria-labelledby="onboarding-title">
+          <p className="eyebrow">CAREER + RESUME PASSPORT</p>
+          <h1 id="onboarding-title">
+            Your professional identity
+            <br />
+            travels with you.
+          </h1>
+          <p className="onboarding-lede">
+            Career Passport translates your resume into clear English, formats it
+            for U.S. roles, and shows how your experience matches the job you want.
+          </p>
+          <div className="onboarding-illustration">
+            <Image
+              src="/career-passport-people.svg"
+              alt="Professionals from different fields building their next career chapter with a resume"
+              width={560}
+              height={300}
+              priority
+            />
+          </div>
+
+          <div className="setup-card" aria-labelledby="profile-heading">
+            <div className="setup-heading">
+              <div>
+                <p className="eyebrow">YOUR PROFILE</p>
+                <h2 id="profile-heading">Build your career passport</h2>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <label>
+                Full name
+                {errors.name && (
+                  <span role="alert" className="error-message">{errors.name}</span>
+                )}
+                <input
+                  id="full-name"
+                  name="fullName"
+                  autoComplete="name"
+                  value={draft.name}
+                  onChange={(e) => updateDraft("name", e.target.value)}
+                  placeholder="e.g. Aisha Khan"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? undefined : "full-name-hint"}
+                />
+                {!errors.name && <small id="full-name-hint">Your full professional name</small>}
+              </label>
+
+              <label>
+                Country where you studied
+                <input
+                  id="study-country"
+                  name="studyCountry"
+                  value={draft.country}
+                  onChange={(e) => updateDraft("country", e.target.value)}
+                  placeholder="e.g. Vietnam"
+                />
+              </label>
+
+              <label>
+                Degree
+                <input
+                  id="degree"
+                  name="degree"
+                  value={draft.degree}
+                  onChange={(e) => updateDraft("degree", e.target.value)}
+                  placeholder="e.g. B.S. in Computer Engineering"
+                />
+              </label>
+
+              <label>
+                Field of study
+                <input
+                  id="field-of-study"
+                  name="fieldOfStudy"
+                  value={draft.field}
+                  onChange={(e) => updateDraft("field", e.target.value)}
+                  placeholder="e.g. Computer Engineering"
+                />
+              </label>
+
+              <label>
+                Years of experience
+                <input
+                  id="experience"
+                  name="experience"
+                  inputMode="numeric"
+                  value={draft.experience}
+                  onChange={(e) => updateDraft("experience", e.target.value)}
+                  placeholder="e.g. 5"
+                />
+              </label>
+
+              <label>
+                Previous / current title
+                <input
+                  id="previous-title"
+                  name="previousTitle"
+                  value={draft.title}
+                  onChange={(e) => updateDraft("title", e.target.value)}
+                  placeholder="e.g. Systems Analyst"
+                />
+              </label>
+
+              <label>
+                Target U.S. profession
+                {errors.target && (
+                  <span role="alert" className="error-message">{errors.target}</span>
+                )}
+                <input
+                  id="target-profession"
+                  name="targetProfession"
+                  value={draft.target}
+                  onChange={(e) => updateDraft("target", e.target.value)}
+                  placeholder="e.g. Software Engineer"
+                  aria-invalid={!!errors.target}
+                />
+              </label>
+
+              <label>
+                Job application link <span>(optional)</span>
+                <input
+                  id="application-link"
+                  name="applicationLink"
+                  type="url"
+                  value={draft.applicationLink}
+                  onChange={(e) => updateDraft("applicationLink", e.target.value)}
+                  placeholder="https://company.com/jobs/role"
+                />
+              </label>
+            </div>
+
+            <label className="resume-drop">
+              Your resume <span>PDF, DOCX, or image</span>
+              <input
+                id="resume-upload"
+                name="resume"
+                type="file"
+                accept=".pdf,.doc,.docx,.avif,image/*"
+                onChange={(e) => void chooseResume(e.target.files?.[0] || null)}
+                aria-describedby="resume-hint"
+              />
+              <strong>{draft.resume || "Choose a resume to translate"}</strong>
+              <small id="resume-hint">
+                Career Passport sends the original document to AI for extraction when configured.
+              </small>
+            </label>
+
+            <label className="language-field">
+              Resume language
+              <select
+                id="resume-language"
+                name="resumeLanguage"
+                value={draft.sourceLanguage}
+                onChange={(e) => updateDraft("sourceLanguage", e.target.value)}
+              >
+                <option value="auto">Auto-detect</option>
+                <option value="English">English</option>
+                <option value="Vietnamese">Vietnamese</option>
+                <option value="Spanish">Spanish</option>
+                <option value="French">French</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="Tagalog">Tagalog</option>
+                <option value="Other">Other language</option>
+              </select>
+              <small>Career Passport translates the resume into English before formatting it.</small>
+            </label>
+
+            <button
+              className="generate-button"
+              disabled={!draft.name || !draft.target || isGenerating}
+              onClick={generate}
+              aria-label="Generate your Career Passport resume and job match"
+              aria-busy={isGenerating}
+            >
+              {isGenerating ? "Generating…" : "Generate my career passport"}
+            </button>
+          </div>
+
+          <p className="onboarding-disclaimer">
+            Career Passport provides informational career translation. It does not replace
+            official credential evaluations, licensing authorities, employer decisions, or legal advice.
+          </p>
+        </section>
+      </main>
     );
-  };
+  }
 
-  const currentSteps = getSteps(profile);
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DASHBOARD PHASE (profile !== null)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const improvementSteps = matchReport?.steps ?? [
+    profile.resume
+      ? `Review your resume evidence for the ${profile.target} role.`
+      : "Upload your resume for a personalized review.",
+    profile.applicationLink
+      ? `Compare your resume directly with the ${profile.target} job posting.`
+      : "Add the job application link to compare your resume with the exact role.",
+    `Make sure your ${profile.target} resume shows specific responsibilities, tools, and outcomes.`,
+  ];
+
   const currentEvidence = getEvidence(profile);
   const currentResources = getResources(profile);
+  const currentSteps = getSteps(profile);
 
-  const tabList = ["Profile", "Career map", "Resume", "Resume improvements", "How it works", "Resources"];
+  const navItems = ["Career map", "Job match", "Resume translator", "Resume improvements", "Resources", "How it works"];
 
   return (
     <div className="app-shell">
-      {/* Skip to main content link for keyboard users */}
-      <a href="#main-content" className="skip-link">
+      <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
 
-      {/* Sidebar Navigation */}
-      <aside className="sidebar" role="navigation" aria-label="Main navigation">
+      {/* Sidebar */}
+      <aside className="sidebar" aria-label="Career Passport navigation">
         <div className="brand">
-          <div className="brand-mark">🌍</div>
+          <Image
+            className="brand-logo"
+            src="/career-passport-mark.svg"
+            alt=""
+            width={34}
+            height={34}
+            priority
+          />
           <span>CAREER PASSPORT</span>
         </div>
 
-        {profile.name && (
-          <div className="sidebar-profile" role="region" aria-label="Your profile">
-            <div className="large-avatar" aria-hidden="true">
-              {profile.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <strong>{profile.name}</strong>
-              <span>{profile.country}</span>
-            </div>
-          </div>
-        )}
+        <div className="passport-sidebar-mark" aria-hidden="true">
+          <span>✦</span>
+          <small>FIELD NOTES</small>
+        </div>
 
-        <nav className="nav-list" role="tablist">
-          {tabList.map((tab) => (
+        <div className="sidebar-profile" aria-label="Current profile">
+          <div className="avatar" aria-hidden="true">
+            {profile.name
+              .split(" ")
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)}
+          </div>
+          <div>
+            <strong>{profile.name}</strong>
+            <span>{profile.country} → United States</span>
+          </div>
+          <button
+            className="chevron"
+            type="button"
+            aria-label="Open how it works"
+            onClick={() => setTab("How it works")}
+          >
+            ⌄
+          </button>
+        </div>
+
+        <nav className="nav-list" aria-label="Main navigation" role="tablist">
+          {navItems.map((item) => (
             <button
-              key={tab}
-              className={`nav-item ${currentTab === tab ? "active" : ""}`}
-              onClick={() => setCurrentTab(tab)}
+              key={item}
+              className={`nav-item ${tab === item ? "active" : ""}`}
+              onClick={() => setTab(item)}
               role="tab"
-              aria-selected={currentTab === tab}
-              aria-controls={`${tab.toLowerCase()}-panel`}
+              aria-selected={tab === item}
+              aria-controls={`${item.toLowerCase().replace(/\s+/g, "-")}-panel`}
             >
               <span className="nav-symbol" aria-hidden="true">
-                {tab === "Profile" && "📝"}
-                {tab === "Career map" && "🗺️"}
-                {tab === "Resume" && "📄"}
-                {tab === "Resume improvements" && "⬆️"}
-                {tab === "How it works" && "ℹ️"}
-                {tab === "Resources" && "🔗"}
+                {item === "Career map" ? "◈" : item === "Job match" ? "⊕" : item === "Resume translator" ? "▤" : item === "Resume improvements" ? "⌕" : item === "Resources" ? "⊙" : "ℹ"}
               </span>
-              <span>{tab}</span>
+              {item}
             </button>
           ))}
         </nav>
@@ -283,265 +580,146 @@ export default function Home() {
         <div className="sidebar-bottom">
           <div className="privacy-note">
             <strong>About</strong>
-            <small>Career Passport helps translate your international credentials into U.S. career pathways.</small>
+            <small>
+              Career Passport helps translate your international credentials into U.S. career pathways.
+            </small>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="main-content" id="main-content">
-        {/* Top Bar */}
-        <header className="topbar" role="banner">
-          <div className="breadcrumb" aria-label="Page breadcrumb">
-            Career Passport <span aria-hidden="true">›</span> <span>{currentTab}</span>
+      {/* Main content */}
+      <main className="main-content" id="main-content" tabIndex={-1}>
+        <header className="topbar">
+          <nav className="breadcrumb" aria-label="Page breadcrumb">
+            MY CAREER PASSPORT <span aria-hidden="true">/</span>{" "}
+            <span>{tab.toUpperCase()}</span>
+          </nav>
+          <div className="top-actions">
+            <button
+              className="help-button"
+              type="button"
+              onClick={() => setTab("How it works")}
+            >
+              Need help? <span aria-hidden="true">↗</span>
+            </button>
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="content-wrap">
-          {/* Profile Tab */}
-          {currentTab === "Profile" && (
-            <section className="onboarding" aria-labelledby="profile-title">
-              <div className="onboarding-content">
-                <h1 id="profile-title">Create Your Career Profile</h1>
-                <p className="lede">
-                  Tell us about your education and experience. We'll help you understand 
-                  how it translates to U.S. opportunities.
-                </p>
+          {/* Welcome row */}
+          <section className="welcome-row" aria-label="Profile overview">
+            <div>
+              <p className="eyebrow">YOUR CAREER TRANSLATION</p>
+              <h1>Your experience has a place here.</h1>
+              <p className="lede">
+                We translated {profile.name}&apos;s professional journey into a clear path forward in the U.S.
+              </p>
+            </div>
+            <label className="upload-button">
+              <span aria-hidden="true">↑</span>
+              {profile.resume ? profile.resume : "Upload a new document"}
+              <input
+                aria-label="Upload a new resume document"
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleFileUpload}
+              />
+            </label>
+          </section>
 
-                <div className="setup-card">
-                  <form onSubmit={(e) => { e.preventDefault(); generateMatch(); }} 
-                        aria-describedby="form-instructions">
-                    <p id="form-instructions" className="sr-only">
-                      Fill in your educational background and professional experience.
-                      All fields are optional unless marked as required.
-                    </p>
-
-                    <div className="form-grid">
-                      {/* Country Field */}
-                      <div>
-                        <label htmlFor="country-select">
-                          Country
-                          <span className="required" aria-label="required">*</span>
-                        </label>
-                        <select
-                          id="country-select"
-                          value={profile.country}
-                          onChange={(e) => updateProfile("country", e.target.value)}
-                          aria-invalid={!!errors.country}
-                          aria-describedby={errors.country ? "country-error" : "country-hint"}
-                          required
-                        >
-                          <option value="">Select a country</option>
-                          <option value="India">India</option>
-                          <option value="Philippines">Philippines</option>
-                          <option value="Nigeria">Nigeria</option>
-                          <option value="Ukraine">Ukraine</option>
-                        </select>
-                        {errors.country ? (
-                          <span id="country-error" role="alert" className="error-message">
-                            {errors.country}
-                          </span>
-                        ) : (
-                          <small id="country-hint">
-                            Where you earned your degree
-                          </small>
-                        )}
-                      </div>
-
-                      {/* Degree Field */}
-                      <div>
-                        <label htmlFor="degree-input">
-                          Degree Name
-                          <span className="required" aria-label="required">*</span>
-                        </label>
-                        <input
-                          id="degree-input"
-                          type="text"
-                          placeholder="e.g., Bachelor of Technology"
-                          value={profile.degree}
-                          onChange={(e) => updateProfile("degree", e.target.value)}
-                          aria-invalid={!!errors.degree}
-                          aria-describedby={errors.degree ? "degree-error" : "degree-hint"}
-                          required
-                        />
-                        {errors.degree ? (
-                          <span id="degree-error" role="alert" className="error-message">
-                            {errors.degree}
-                          </span>
-                        ) : (
-                          <small id="degree-hint">
-                            Examples: B.Tech, Bachelor of Science
-                          </small>
-                        )}
-                      </div>
-
-                      {/* Field of Study */}
-                      <div>
-                        <label htmlFor="field-input">
-                          Field of Study
-                        </label>
-                        <input
-                          id="field-input"
-                          type="text"
-                          placeholder="e.g., Computer Science"
-                          value={profile.field}
-                          onChange={(e) => updateProfile("field", e.target.value)}
-                          aria-describedby="field-hint"
-                        />
-                        <small id="field-hint">
-                          Your degree specialty
-                        </small>
-                      </div>
-
-                      {/* Experience */}
-                      <div>
-                        <label htmlFor="experience-input">
-                          Years of Experience
-                        </label>
-                        <input
-                          id="experience-input"
-                          type="text"
-                          placeholder="e.g., 5"
-                          value={profile.experience}
-                          onChange={(e) => updateProfile("experience", e.target.value)}
-                          aria-describedby="experience-hint"
-                        />
-                        <small id="experience-hint">
-                          Professional experience since graduation
-                        </small>
-                      </div>
-
-                      {/* Job Title */}
-                      <div>
-                        <label htmlFor="title-input">
-                          Current or Most Recent Title
-                        </label>
-                        <input
-                          id="title-input"
-                          type="text"
-                          placeholder="e.g., Senior Software Engineer"
-                          value={profile.title}
-                          onChange={(e) => updateProfile("title", e.target.value)}
-                          aria-describedby="title-hint"
-                        />
-                        <small id="title-hint">
-                          Your professional title
-                        </small>
-                      </div>
-
-                      {/* Target Role */}
-                      <div>
-                        <label htmlFor="target-input">
-                          Target U.S. Role
-                          <span className="required" aria-label="required">*</span>
-                        </label>
-                        <input
-                          id="target-input"
-                          type="text"
-                          placeholder="e.g., Software Engineer"
-                          value={profile.target}
-                          onChange={(e) => updateProfile("target", e.target.value)}
-                          aria-invalid={!!errors.target}
-                          aria-describedby={errors.target ? "target-error" : "target-hint"}
-                          required
-                        />
-                        {errors.target ? (
-                          <span id="target-error" role="alert" className="error-message">
-                            {errors.target}
-                          </span>
-                        ) : (
-                          <small id="target-hint">
-                            The role you want to pursue
-                          </small>
-                        )}
-                      </div>
-
-                      {/* Resume Upload */}
-                      <div className="resume-drop">
-                        <label htmlFor="resume-upload">
-                          Upload Resume <span aria-label="optional">(optional)</span>
-                        </label>
-                        <input
-                          id="resume-upload"
-                          type="file"
-                          accept=".pdf,.docx,.txt"
-                          onChange={handleFileUpload}
-                          aria-describedby="upload-hint"
-                        />
-                        <strong>Upload resume</strong>
-                        <small id="upload-hint">
-                          PDF, DOCX, or TXT. Max 5MB
-                        </small>
-                      </div>
-                    </div>
-
-                    {errors.submit && (
-                      <div role="alert" className="error-message" style={{ marginTop: "16px" }}>
-                        {errors.submit}
-                      </div>
-                    )}
-
-                    <button 
-                      type="submit"
-                      className="generate-button"
-                      disabled={isGenerating}
-                      aria-busy={isGenerating}
-                    >
-                      {isGenerating ? "Generating..." : "Generate Career Map"}
-                      <span>→</span>
-                    </button>
-                  </form>
-                </div>
+          {/* Profile strip */}
+          <section className="profile-strip" aria-label="Career profile summary">
+            <div className="profile-intro">
+              <div className="large-avatar" aria-hidden="true">
+                {profile.name
+                  .split(" ")
+                  .map((part) => part[0])
+                  .join("")
+                  .slice(0, 2)}
               </div>
-            </section>
-          )}
+              <div>
+                <h2>{profile.name}</h2>
+                <p>
+                  <span aria-hidden="true">🌍</span> {profile.country}{" "}
+                  <span className="divider" aria-hidden="true">•</span>{" "}
+                  {profile.experience || "0"} years experience
+                </p>
+              </div>
+            </div>
+            <div className="target-block">
+              <span className="muted-label">TARGETING</span>
+              <strong>{profile.target}</strong>
+              <span>United States</span>
+            </div>
+            <button
+              className="edit-button"
+              aria-label="Edit profile — return to onboarding"
+              onClick={() => {
+                setDraft({ ...profile });
+                setProfile(null);
+              }}
+            >
+              ✎
+            </button>
+          </section>
 
-          {/* Career Map Tab */}
-          {currentTab === "Career map" && (
-            <section id="career-map-panel" aria-labelledby="map-title">
-              <h1 id="map-title" style={{ fontSize: "24px", marginBottom: "24px" }}>
-                Your U.S. Career Map
-              </h1>
+          {/* Tab row (secondary nav for content area) */}
+          <nav className="tab-row" aria-label="Career Passport views">
+            {["Career map", "Job match", "Resume improvements", "Resources"].map((item) => (
+              <button
+                key={item}
+                onClick={() => setTab(item)}
+                className={tab === item ? "tab-active" : ""}
+                aria-current={tab === item ? "page" : undefined}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
 
-              {/* Career pathway visualization */}
-              <div className="map-grid" role="img" aria-label="Career pathway diagram">
+          {/* ── Career map ─────────────────────────────────────────────────── */}
+          {tab === "Career map" && (
+            <section
+              id="career-map-panel"
+              aria-labelledby="map-title"
+              role="tabpanel"
+            >
+              <div
+                className="map-grid"
+                role="img"
+                aria-label="Career pathway diagram showing your background on the left and your U.S. target role on the right"
+              >
                 <div className="map-node">
                   <span className="node-kicker">YOUR BACKGROUND</span>
                   <strong>{profile.degree || "International degree"}</strong>
-                  <span>
-                    {profile.field || "Professional experience"} · {profile.country}
-                  </span>
+                  <span>{profile.field || "Professional experience"} · {profile.country}</span>
                   <div className="node-line" />
                   <strong>{profile.experience || "0"} years experience</strong>
                   <span>{profile.title || "Previous professional role"}</span>
                 </div>
-                <div className="map-connector">
+                <div className="map-connector" aria-hidden="true">
                   <span>TRANSLATE</span>
-                  <i aria-hidden="true" />
-                  <i aria-hidden="true" />
-                  <i aria-hidden="true" />
+                  <i /><i /><i />
                 </div>
                 <div className="map-node">
                   <span className="node-kicker">YOUR NEXT CHAPTER</span>
                   <strong>{profile.target}</strong>
                   <span>United States</span>
                   <div className="progress-mini">
-                    <span style={{ width: `${matchReport?.score || 0}%` }} />
+                    <span style={{ width: `${matchReport?.score ?? 0}%` }} />
                   </div>
                   <small>
-                    {matchReport 
-                      ? `${matchReport.score}% resume match` 
-                      : "Add your resume for a match review"}
+                    {matchReport
+                      ? `${matchReport.score}% resume match`
+                      : "Generate to see your resume match"}
                   </small>
                 </div>
               </div>
 
-              {/* Skills evidence section */}
               <section style={{ marginTop: "32px" }} aria-labelledby="evidence-title">
-                <h2 id="evidence-title" style={{ fontSize: "18px", marginBottom: "16px" }}>
-                  What your profile supports
-                </h2>
+                <div className="section-heading compact">
+                  <h2 id="evidence-title">What your profile supports</h2>
+                </div>
                 <div className="path-list">
                   {currentEvidence.map((item) => (
                     <article key={item} className="path-card">
@@ -557,161 +735,303 @@ export default function Home() {
             </section>
           )}
 
-          {/* Resume Tab */}
-          {currentTab === "Resume" && (
-            <section id="resume-panel" aria-labelledby="resume-title">
-              <h1 id="resume-title" style={{ fontSize: "24px", marginBottom: "24px" }}>
-                Generated Resume
-              </h1>
-
-              {isGenerating && (
-                <div role="status" aria-live="polite" className="loading-state">
-                  <span aria-hidden="true">⟳</span>
-                  <span>Translating your resume...</span>
+          {/* ── Job match ──────────────────────────────────────────────────── */}
+          {tab === "Job match" && (
+            <section
+              id="job-match-panel"
+              aria-labelledby="job-match-title"
+              role="tabpanel"
+            >
+              {!matchReport && (
+                <div className="single-panel">
+                  <p className="eyebrow">JOB MATCH</p>
+                  <h2 id="job-match-title">No match report yet</h2>
+                  <p className="panel-lede">
+                    Generate your career passport from the onboarding screen to see how your
+                    resume matches your target role.
+                  </p>
                 </div>
               )}
-
-              {generatedResume && (
-                <>
-                  <div role="status" aria-live="polite" className="success-message" style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "12px",
-                    background: "#e8f5e9",
-                    borderLeft: "4px solid #4caf50",
-                    marginBottom: "20px",
-                    borderRadius: "4px"
-                  }}>
-                    <span aria-hidden="true">✓</span>
-                    Resume translation complete
-                  </div>
-
-                  <div className="resume-panel">
-                    <div className="resume-document">
-                      <div className="resume-header">
-                        <h3>{profile.name || "Your Name"}</h3>
-                        <p>{profile.target}</p>
-                        <span className="sr-only">Contact information available in downloadable version</span>
-                      </div>
-
-                      {generatedResume.summary && (
-                        <section className="resume-section">
-                          <h4>Professional Summary</h4>
-                          <p>{generatedResume.summary}</p>
-                        </section>
-                      )}
-
-                      {generatedResume.experience.length > 0 && (
-                        <section className="resume-section">
-                          <h4>Professional Experience</h4>
-                          {generatedResume.experience.map((exp, idx) => (
-                            <div key={idx} className="resume-role">
-                              <div>
-                                <strong>{exp.title}</strong>
-                                <span>{exp.company}</span>
-                              </div>
-                              <span>{exp.dates}</span>
-                              <ul>
-                                {exp.bullets.map((bullet, bidx) => (
-                                  <li key={bidx}>{bullet}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </section>
-                      )}
-
-                      {generatedResume.skills.length > 0 && (
-                        <section className="resume-section">
-                          <h4>Skills</h4>
-                          <div className="resume-skill-list">
-                            {generatedResume.skills.map((skill) => (
-                              <span key={skill}>{skill}</span>
-                            ))}
-                          </div>
-                        </section>
-                      )}
+              {matchReport && (
+                <div className="match-panel">
+                  <div className="match-summary">
+                    <div>
+                      <p className="eyebrow">RESUME TO JOB MATCH</p>
+                      <h2 id="job-match-title">
+                        {matchReport.score}% match for {profile.target}
+                      </h2>
+                      <p className="panel-lede">
+                        {profile.applicationLink
+                          ? matchReport.source
+                          : "Add an application link for a more exact comparison with a specific job."}
+                      </p>
                     </div>
-
-                    <div className="resume-note">
-                      <strong>Before you use this:</strong>
-                      <p>{generatedResume.note}</p>
-                    </div>
-
-                    <button
-                      onClick={downloadResume}
-                      className="download-button"
-                      aria-label="Download resume as Word document"
+                    <div
+                      className="match-score"
+                      aria-label={`Match score: ${matchReport.score} percent`}
                     >
-                      ⬇️ Download Resume
-                    </button>
+                      {matchReport.score}%
+                    </div>
                   </div>
-                </>
+                  <div className="match-columns">
+                    <div>
+                      <h3>Matches the job description</h3>
+                      <div className="match-finding-list">
+                        {matchReport.strengths.map((item) => (
+                          <article className="match-finding" key={item.title}>
+                            <strong>{item.title}</strong>
+                            <p><b>Evidence:</b> {item.evidence}</p>
+                            <p><b>Why it works:</b> {item.reason}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h3>Does not match yet</h3>
+                      <div className="match-finding-list">
+                        {(matchReport.missing.length
+                          ? matchReport.missing
+                          : [{
+                            title: "No major profile gaps detected",
+                            evidence: "The available profile information covers the main comparison fields.",
+                            reason: "Keep checking each claim against your source documents.",
+                            correction: "Review every entry for accuracy before applying.",
+                          }]
+                        ).map((item) => (
+                          <article className="match-finding missing-finding" key={item.title}>
+                            <strong>{item.title}</strong>
+                            <p><b>What we found:</b> {item.evidence}</p>
+                            <p><b>Why it matters:</b> {item.reason}</p>
+                            <p><b>How to correct it:</b> {item.correction}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h3>Steps to improve</h3>
+                      <ol>
+                        {matchReport.steps.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+                </div>
               )}
             </section>
           )}
 
-          {/* Resume Improvements Tab */}
-          {currentTab === "Resume improvements" && matchReport && (
-            <section id="improvements-panel" aria-labelledby="improvements-title">
-              <h1 id="improvements-title" style={{ fontSize: "24px", marginBottom: "24px" }}>
-                Resume Improvement Roadmap
-              </h1>
-
-              <div className="improvement-score-grid">
+          {/* ── Resume translator ──────────────────────────────────────────── */}
+          {tab === "Resume translator" && (
+            <section
+              id="resume-translator-panel"
+              className="single-panel resume-panel"
+              aria-labelledby="resume-title"
+              role="tabpanel"
+            >
+              <div className="resume-panel-heading">
                 <div>
-                  <span>Resume Similarity</span>
-                  <strong>{matchReport.similarityScore}%</strong>
-                  <small>How closely the resume language matches this role</small>
+                  <p className="eyebrow">U.S. RESUME TRANSLATOR</p>
+                  <h2 id="resume-title">{profile.name}&apos;s translated resume</h2>
+                  <p className="panel-lede">
+                    Adapted for {profile.target || "your target role"} applications in the
+                    United States, using the experience and education you provided.
+                  </p>
                 </div>
-                <div>
-                  <span>Acceptance Likelihood</span>
-                  <strong>{matchReport.acceptanceLikelihood}%</strong>
-                  <small>Stronger evidence can improve this estimate</small>
-                </div>
+                {generatedResume && !isTranslating && (
+                  <button
+                    className="download-button"
+                    type="button"
+                    onClick={() => void downloadResume(generatedResume, profile.name)}
+                    aria-label="Download resume as Word document"
+                  >
+                    ↓ Download resume
+                  </button>
+                )}
               </div>
 
-              <section aria-labelledby="keywords-title" style={{ marginTop: "24px" }}>
-                <h2 id="keywords-title" style={{ fontSize: "16px", marginBottom: "12px" }}>
-                  Keyword Analysis
-                </h2>
-                <div className="keyword-comparison">
-                  <div>
-                    <h3>Keywords that match</h3>
-                    <div className="keyword-list">
-                      {matchReport.matchedKeywords.length ? (
-                        matchReport.matchedKeywords.map((keyword) => (
-                          <span key={keyword} className="keyword-match">
-                            ✓ {keyword}
+              {isGenerating && (
+                <div className="loading-state" role="status" aria-live="polite">
+                  <span aria-hidden="true">⟳</span>
+                  <span>Translating your resume…</span>
+                </div>
+              )}
+
+              {generatedResume && !isTranslating && (
+                <>
+                  <div
+                    className="success-message"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span aria-hidden="true">✓</span>
+                    Resume translation complete
+                  </div>
+
+                  <div className="resume-document">
+                    <span className="resume-stamp" aria-hidden="true">CAREER PASSPORT</span>
+                    <div className="resume-header">
+                      <h3>{profile.name}</h3>
+                      <p>{generatedResume.headline}</p>
+                      {generatedResume.sourceLanguage &&
+                        generatedResume.sourceLanguage !== "English" && (
+                          <span className="resume-language-note">
+                            Translated from {generatedResume.sourceLanguage} to English
                           </span>
-                        ))
+                        )}
+                      {generatedResume.contact?.length ? (
+                        <span>{generatedResume.contact.join(" · ")}</span>
                       ) : (
-                        <span className="keyword-missing">No direct matches found yet</span>
+                        <span>{profile.country} experience · United States</span>
                       )}
+                    </div>
+
+                    {generatedResume.education && (
+                      <section className="resume-section">
+                        <h4>Education</h4>
+                        <p className="resume-template-lines">{generatedResume.education}</p>
+                      </section>
+                    )}
+
+                    {generatedResume.summary && (
+                      <section className="resume-section">
+                        <h4>Professional Summary</h4>
+                        <p>{generatedResume.summary}</p>
+                      </section>
+                    )}
+
+                    {generatedResume.experience.length > 0 && (
+                      <section className="resume-section">
+                        <h4>Professional Experience</h4>
+                        {generatedResume.experience.map((exp, idx) => (
+                          <div key={idx} className="resume-role">
+                            <div>
+                              <strong>{exp.title}</strong>
+                              <span>{exp.company}</span>
+                            </div>
+                            <span>{exp.dates}</span>
+                            <ul>
+                              {exp.bullets.map((bullet, bidx) => (
+                                <li key={bidx}>{bullet}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </section>
+                    )}
+
+                    {generatedResume.leadershipActivities?.length ? (
+                      <section className="resume-section">
+                        <h4>Leadership &amp; Activities</h4>
+                        {generatedResume.leadershipActivities.map((act, idx) => (
+                          <div key={idx} className="resume-role">
+                            <div>
+                              <strong>{act.title}</strong>
+                              <span>{act.organization}</span>
+                            </div>
+                            <span>{act.dates}</span>
+                            <ul>
+                              {act.bullets.map((b, bidx) => (
+                                <li key={bidx}>{b}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </section>
+                    ) : null}
+
+                    {generatedResume.skills.length > 0 && (
+                      <section className="resume-section">
+                        <h4>Skills</h4>
+                        <div className="resume-skill-list">
+                          {generatedResume.skills.map((skill) => (
+                            <span key={skill}>{skill}</span>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </div>
+
+                  {generatedResume.note && (
+                    <div className="resume-note">
+                      <strong>Before you use this:</strong>
+                      <p>{generatedResume.note}</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!generatedResume && !isGenerating && (
+                <p className="panel-lede" style={{ marginTop: "24px" }}>
+                  No translation yet. Return to the onboarding screen and generate your career passport.
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* ── Resume improvements ────────────────────────────────────────── */}
+          {tab === "Resume improvements" && (
+            <section
+              id="resume-improvements-panel"
+              aria-labelledby="improvements-title"
+              role="tabpanel"
+            >
+              {matchReport && (
+                <>
+                  <div className="improvement-score-grid">
+                    <div>
+                      <span>Resume Similarity</span>
+                      <strong>{matchReport.similarityScore}%</strong>
+                      <small>How closely the resume language matches this role</small>
+                    </div>
+                    <div>
+                      <span>Acceptance Likelihood</span>
+                      <strong>{matchReport.acceptanceLikelihood}%</strong>
+                      <small>Stronger evidence can improve this estimate</small>
                     </div>
                   </div>
-                  <div>
-                    <h3>Keywords missing</h3>
-                    <div className="keyword-list">
-                      {matchReport.missingKeywords.length ? (
-                        matchReport.missingKeywords.map((keyword) => (
-                          <span key={keyword} className="keyword-missing">
-                            ◆ {keyword}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="keyword-match">No missing keywords detected</span>
-                      )}
+
+                  <section aria-labelledby="keywords-title" style={{ marginTop: "24px" }}>
+                    <h2 id="keywords-title" style={{ fontSize: "16px", marginBottom: "12px" }}>
+                      Keyword Analysis
+                    </h2>
+                    <div className="keyword-comparison">
+                      <div>
+                        <h3>Keywords that match</h3>
+                        <div className="keyword-list">
+                          {matchReport.matchedKeywords.length ? (
+                            matchReport.matchedKeywords.map((kw) => (
+                              <span key={kw} className="keyword-match">✓ {kw}</span>
+                            ))
+                          ) : (
+                            <span className="keyword-missing">No direct matches found yet</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <h3>Keywords missing</h3>
+                        <div className="keyword-list">
+                          {matchReport.missingKeywords.length ? (
+                            matchReport.missingKeywords.map((kw) => (
+                              <span key={kw} className="keyword-missing">◆ {kw}</span>
+                            ))
+                          ) : (
+                            <span className="keyword-match">No missing keywords detected</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  </section>
+                </>
+              )}
+
+              <section aria-labelledby="improvements-title" style={{ marginTop: "24px" }}>
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">YOUR IMPROVEMENT PATHWAY</p>
+                    <h2 id="improvements-title">Action steps</h2>
                   </div>
                 </div>
-              </section>
-
-              <section aria-labelledby="steps-title" style={{ marginTop: "24px" }}>
-                <h2 id="steps-title" style={{ fontSize: "16px", marginBottom: "12px" }}>
-                  Action Steps
-                </h2>
                 <div className="full-checklist">
                   {currentSteps.map(([title, description], index) => (
                     <button
@@ -720,7 +1040,9 @@ export default function Home() {
                       onClick={() => toggle(title)}
                       aria-pressed={done.includes(title)}
                     >
-                      <span className={`step-number ${done.includes(title) ? "complete" : ""}`}>
+                      <span
+                        className={`step-number ${done.includes(title) ? "complete" : ""}`}
+                      >
                         {done.includes(title) ? "✓" : `0${index + 1}`}
                       </span>
                       <span>
@@ -731,19 +1053,44 @@ export default function Home() {
                   ))}
                 </div>
               </section>
+
+              <section className="below-grid" style={{ marginTop: "32px" }}>
+                <div>
+                  <div className="section-heading compact">
+                    <div>
+                      <p className="eyebrow">RESUME EVIDENCE</p>
+                      <h2>What your profile supports</h2>
+                    </div>
+                  </div>
+                  <div className="path-list">
+                    {currentEvidence.map((item) => (
+                      <article className="path-card" key={item}>
+                        <div className="path-icon" aria-hidden="true">✓</div>
+                        <div className="path-copy">
+                          <h3>{item}</h3>
+                          <p>Provided in your profile and available for evidence-based resume review.</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </section>
             </section>
           )}
 
-          {/* Resources Tab */}
-          {currentTab === "Resources" && (
-            <section id="resources-panel" aria-labelledby="resources-title">
-              <h1 id="resources-title" style={{ fontSize: "24px", marginBottom: "24px" }}>
-                Resources for Your Next Step
-              </h1>
-              <p style={{ color: "#536962", marginBottom: "20px" }}>
+          {/* ── Resources ──────────────────────────────────────────────────── */}
+          {tab === "Resources" && (
+            <section
+              id="resources-panel"
+              aria-labelledby="resources-title"
+              role="tabpanel"
+            >
+              <h2 id="resources-title" style={{ fontSize: "22px", marginBottom: "8px" }}>
+                Resources for your next step
+              </h2>
+              <p style={{ color: "var(--muted)", marginBottom: "20px", fontSize: "13px" }}>
                 Use these resources to address gaps in your profile and advance your career pathway.
               </p>
-
               <div className="resource-list">
                 {currentResources.map((resource) => (
                   <article key={resource.title} className="resource-card">
@@ -766,51 +1113,54 @@ export default function Home() {
             </section>
           )}
 
-          {/* How It Works Tab */}
-          {currentTab === "How it works" && (
-            <section id="how-it-works-panel" aria-labelledby="how-title">
-              <h1 id="how-title" style={{ fontSize: "24px", marginBottom: "24px" }}>
-                How Career Passport Works
-              </h1>
-
-              <p style={{ color: "#536962", marginBottom: "20px", maxWidth: "600px" }}>
-                Career Passport helps translate your international credentials and experience 
-                into U.S. career opportunities. It does not make licensing or hiring decisions.
+          {/* ── How it works ───────────────────────────────────────────────── */}
+          {tab === "How it works" && (
+            <section
+              id="how-it-works-panel"
+              className="single-panel"
+              aria-labelledby="how-title"
+              role="tabpanel"
+            >
+              <p className="eyebrow">HOW CAREER PASSPORT WORKS</p>
+              <h2 id="how-title">Your resume improvement pathway</h2>
+              <p className="panel-lede">
+                Use these steps to strengthen your resume and compare it with a specific U.S.
+                job application. Career Passport does not make licensing or hiring decisions.
               </p>
 
               <div className="full-checklist">
-                {currentSteps.map(([title, description], index) => (
-                  <div key={title} className="full-step">
-                    <span className="step-number">0{index + 1}</span>
-                    <span>
-                      <strong>{title}</strong>
-                      <small>{description}</small>
+                {improvementSteps.map((step, index) => (
+                  <button
+                    key={step}
+                    className="full-step"
+                    onClick={() => toggle(step)}
+                    aria-pressed={done.includes(step)}
+                  >
+                    <span
+                      className={`step-number ${done.includes(step) ? "complete" : ""}`}
+                    >
+                      {done.includes(step) ? "✓" : `0${index + 1}`}
                     </span>
-                  </div>
+                    <span>
+                      <strong>Step {index + 1}</strong>
+                      <small>{step}</small>
+                    </span>
+                  </button>
                 ))}
               </div>
 
-              <div className="source-box" style={{ marginTop: "32px" }}>
-                <strong>Important Disclaimer</strong>
+              <div className="source-box">
+                <strong>Source transparency</strong>
                 <p>
-                  Career Passport provides informational guidance based on your profile and 
-                  job descriptions. It does not replace:
-                </p>
-                <ul style={{ marginLeft: "20px", marginTop: "8px" }}>
-                  <li>Official credential evaluations</li>
-                  <li>Professional licensing decisions</li>
-                  <li>Immigration legal advice</li>
-                  <li>Employer hiring decisions</li>
-                </ul>
-                <p style={{ marginTop: "12px" }}>
-                  Always verify requirements with relevant authorities before making major decisions.
+                  Career Passport summarizes the information you provide and the public job
+                  posting when available. Verify requirements with the employer or professional
+                  authority.
                 </p>
               </div>
             </section>
           )}
 
-          {/* Footer */}
-          <footer style={{ marginTop: "55px", paddingTop: "17px", borderTop: "1px solid #dce6df" }}>
+          <footer>
             <span>Career Passport helps translate and organize your professional background.</span>
             <span>Not an official credential evaluation, licensing decision, or legal advice.</span>
           </footer>
