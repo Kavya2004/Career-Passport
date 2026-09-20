@@ -19,6 +19,7 @@ type Profile = {
   title: string;
   target: string;
   applicationLink: string;
+  sourceLanguage: string;
   resume: string;
   resumeText?: string;
 };
@@ -44,6 +45,7 @@ type Resource = {
 
 type GeneratedResume = {
   headline: string;
+  sourceLanguage?: string;
   contact?: string[];
   summary: string;
   experience: {
@@ -169,6 +171,7 @@ export default function Home() {
     title: "",
     target: "",
     applicationLink: "",
+    sourceLanguage: "auto",
     resume: "",
   });
   const [generatedResume, setGeneratedResume] =
@@ -192,6 +195,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("profile", JSON.stringify(nextProfile));
+      formData.append("sourceLanguage", nextProfile.sourceLanguage);
       if (file) formData.append("resume", file);
       const response = await fetch("/api/translate-resume", {
         method: "POST",
@@ -358,6 +362,28 @@ export default function Home() {
                 Career Passport sends the original document to AI for extraction when
                 configured.
               </small>
+            </label>
+            <label className="language-field">
+              Resume language
+              <select
+                value={draft.sourceLanguage}
+                onChange={(event) =>
+                  updateDraft("sourceLanguage", event.target.value)
+                }
+              >
+                <option value="auto">Auto-detect</option>
+                <option value="English">English</option>
+                <option value="Vietnamese">Vietnamese</option>
+                <option value="Spanish">Spanish</option>
+                <option value="French">French</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="Tagalog">Tagalog</option>
+                <option value="Other">Other language</option>
+              </select>
+              <small>Career Passport translates the resume into English before formatting it.</small>
             </label>
             <button
               className="generate-button"
@@ -599,6 +625,11 @@ export default function Home() {
                   <div className="resume-header">
                     <h3>{profile.name}</h3>
                     <p>{generatedResume.headline}</p>
+                    {generatedResume.sourceLanguage && generatedResume.sourceLanguage !== "English" && (
+                      <span className="resume-language-note">
+                        Translated from {generatedResume.sourceLanguage} to English
+                      </span>
+                    )}
                     {generatedResume.contact?.length ? (
                       <span className="resume-contact">
                         {generatedResume.contact.join(" · ")}

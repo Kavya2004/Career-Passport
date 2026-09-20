@@ -3,6 +3,7 @@
 
 .chevron{border:0;background:transparent;padding:0;color:#a9c2b7}
 .resume-template-lines{white-space:pre-line}
+.language-field{display:grid;gap:7px;margin-top:14px;color:#688279;font:500 10px 'DM Mono',monospace;letter-spacing:.04em}.language-field select{height:40px;border:1px solid var(--line);border-radius:4px;background:#fbfcf7;padding:0 11px;color:var(--ink);font:12px 'Manrope',sans-serif;outline-color:#8ab09b}.language-field small{color:var(--muted);font:10px 'Manrope',sans-serif;letter-spacing:0}.resume-language-note{display:block;margin-top:4px;font:9px 'DM Mono',monospace;color:#4d8561}
 .download-button{border:1px solid #a7bbb1;background:transparent;color:var(--teal);padding:8px 10px;border-radius:4px;font-size:10px;white-space:nowrap}.download-button:hover{background:#eef5ed}
 .match-finding-list{display:grid;gap:12px}.match-finding{border-left:2px solid #7aa486;padding-left:10px}.missing-finding{border-color:#c59b5b}.match-finding strong{display:block;font-size:11px;margin-bottom:5px}.match-finding p{color:#536962;font-size:10px;line-height:1.5;margin:4px 0}.match-finding b{color:#304b43;font-weight:700}
 .resource-list{display:grid;gap:12px}.resource-card{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;border:1px solid var(--line);padding:18px;border-radius:5px}.resource-card h3{font-size:13px;margin:0 0 7px}.resource-card p:last-child{color:var(--muted);font-size:10px;line-height:1.5;margin:0}.resource-card a{color:var(--teal);font-size:10px;white-space:nowrap}

@@ -9,6 +9,7 @@ type Profile = {
   title: string;
   target: string;
   applicationLink: string;
+  sourceLanguage: string;
   resume: string;
   resumeText?: string;
 };
@@ -18,6 +19,7 @@ function localDraft(profile: Profile) {
   const title = profile.title || "International professional";
   return {
     headline: `${profile.target || title} | ${profile.field || "Transferable expertise"}`,
+    sourceLanguage: profile.sourceLanguage === "auto" ? "English or detected language" : profile.sourceLanguage,
     summary: `${title} with ${experience} years of experience in ${profile.field || "a professional field"}. Brings international experience from ${profile.country || "a global background"} and is pursuing ${profile.target || "a U.S. role"} opportunities. Adaptable, detail-oriented, and ready to contribute skills in a U.S. workplace.`,
     experience: [{
       title: profile.target || title,
@@ -118,6 +120,27 @@ function normalizeMatch(candidate: unknown, fallback: ReturnType<typeof buildMat
   const similarityScore = typeof value.similarityScore === "number"
     ? value.similarityScore
     : typeof value.score === "number" ? value.score : fallback.similarityScore;
+  const normalizeFinding = (item: unknown, missing: boolean) => {
+    if (typeof item === "string") {
+      return {
+        title: item,
+        evidence: missing ? `The resume does not clearly show evidence for ${item}.` : `The resume includes information related to ${item}.`,
+        reason: missing ? "The employer may not be able to verify this requirement from the current resume." : "This gives the application relevant evidence for the role.",
+        correction: missing ? `Add a truthful resume bullet showing how you used ${item}, if your experience supports it.` : "Keep this evidence specific and connected to an outcome.",
+      };
+    }
+    if (!item || typeof item !== "object") return null;
+    const finding = item as Record<string, unknown>;
+    const title = typeof finding.title === "string" ? finding.title : typeof finding.keyword === "string" ? finding.keyword : "Resume finding";
+    return {
+      title,
+      evidence: typeof finding.evidence === "string" ? finding.evidence : `The resume information related to ${title} needs review.`,
+      reason: typeof finding.reason === "string" ? finding.reason : missing ? "This requirement is not clearly supported by the current resume." : "This information may support relevance to the role.",
+      correction: typeof finding.correction === "string" ? finding.correction : missing ? `Add accurate evidence for ${title} if it is part of your experience.` : "Keep the supporting evidence clear and specific.",
+    };
+  };
+  const normalizedStrengths = Array.isArray(value.strengths) ? value.strengths.map((item) => normalizeFinding(item, false)).filter(Boolean) : fallback.strengths;
+  const normalizedMissing = Array.isArray(value.missing) ? value.missing.map((item) => normalizeFinding(item, true)).filter(Boolean) : fallback.missing;
   return {
     ...fallback,
     ...value,
@@ -126,8 +149,8 @@ function normalizeMatch(candidate: unknown, fallback: ReturnType<typeof buildMat
     acceptanceLikelihood: typeof value.acceptanceLikelihood === "number" ? value.acceptanceLikelihood : fallback.acceptanceLikelihood,
     matchedKeywords: Array.isArray(value.matchedKeywords) ? value.matchedKeywords.filter((item): item is string => typeof item === "string") : fallback.matchedKeywords,
     missingKeywords: Array.isArray(value.missingKeywords) ? value.missingKeywords.filter((item): item is string => typeof item === "string") : fallback.missingKeywords,
-    strengths: Array.isArray(value.strengths) ? value.strengths : fallback.strengths,
-    missing: Array.isArray(value.missing) ? value.missing : fallback.missing,
+    strengths: normalizedStrengths,
+    missing: normalizedMissing,
     steps: Array.isArray(value.steps) ? value.steps.filter((item): item is string => typeof item === "string") : fallback.steps,
   };
 }
@@ -175,23 +198,31 @@ function parseJsonResponse(text: unknown) {
 }
 
 async function requestGemini(apiKey: string, body: object) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (response.status !== 503 || attempt === 2) return response;
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  const configuredModel = process.env.GEMINI_MODEL;
+  const models = [...new Set([configuredModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-3.6-flash"].filter(Boolean))] as string[];
+  let lastResponse: Response | null = null;
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      lastResponse = response;
+      if (![404, 429, 500, 502, 503, 504].includes(response.status)) return response;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+    }
   }
-  throw new Error("Gemini request failed after retries");
+  if (!lastResponse) throw new Error("No Gemini models were configured");
+  return lastResponse;
 }
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   const profile = JSON.parse(String(formData.get("profile") || "{}")) as Profile;
   const file = formData.get("resume");
+  const sourceLanguage = String(formData.get("sourceLanguage") || profile.sourceLanguage || "auto");
   const apiKey = process.env.GEMINI_API_KEY;
   const jobText = await getJobText(profile.applicationLink || "");
   const match = buildMatch(profile, jobText);
@@ -202,7 +233,7 @@ export async function POST(request: Request) {
   if (file instanceof File) {
     const bytes = Buffer.from(await file.arrayBuffer()).toString("base64");
     resumePart = { text: `Attached file (${file.name}, ${file.type || "unknown type"}) is available as inline document data.` };
-    const prompt = `Translate this resume into the target role's U.S.-style resume while following this template structure exactly: contact header, Education, Experience, and Leadership & Activities. Return JSON only with keys headline, contact (array of strings), education (string with institution, degree, dates, and details separated by newlines), experience (array of title/company/dates/bullets), leadershipActivities (array of title/organization/dates/bullets), skills (array), note, and match (object with similarityScore 0-100, acceptanceLikelihood 0-100 as a cautious estimate rather than a promise, matchedKeywords array, missingKeywords array, strengths array of title/evidence/reason, missing array of title/evidence/reason/correction, and steps array). Compare the actual resume to the job posting. In match.strengths and match.missing, cite the actual resume section or bullet that supports your reasoning. Omit unknown fields and sections instead of inventing employers, dates, GPA, metrics, credentials, technologies, responsibilities, activities, or achievements. Keep the writing concise and use bullet points for accomplishments. Do not copy decorative colors, photo layouts, sidebars, or template placeholder text. Explain the output is a draft. Profile: ${JSON.stringify(profile)} Job posting text: ${jobText || "No job posting link was provided; use the target role only."}`;
+    const prompt = `The submitted resume is in ${sourceLanguage === "auto" ? "an unknown language; detect it first" : sourceLanguage}. Translate all resume content into accurate professional English before structuring it. Preserve names, employers, credentials, dates, responsibilities, and achievements exactly; do not invent or omit facts. Then translate this resume into the target role's U.S.-style resume while following this template structure exactly: contact header, Education, Experience, and Leadership & Activities. Return JSON only with keys sourceLanguage (the detected source language), headline, contact (array of strings), education (string with institution, degree, dates, and details separated by newlines), experience (array of title/company/dates/bullets), leadershipActivities (array of title/organization/dates/bullets), skills (array), note, and match (object with similarityScore 0-100, acceptanceLikelihood 0-100 as a cautious estimate rather than a promise, matchedKeywords array, missingKeywords array, strengths array of title/evidence/reason, missing array of title/evidence/reason/correction, and steps array). Compare the translated resume content to the job posting. In match.strengths and match.missing, cite the actual translated resume section or bullet that supports your reasoning. Omit unknown fields and sections instead of inventing employers, dates, GPA, metrics, credentials, technologies, responsibilities, activities, or achievements. Do not copy decorative colors, photo layouts, sidebars, or template placeholder text. Explain the output is a draft. Profile: ${JSON.stringify(profile)} Job posting text: ${jobText || "No job posting link was provided; use the target role only."}`;
     const response = await requestGemini(apiKey, { contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: file.type || "application/pdf", data: bytes } }] }], generationConfig: { responseMimeType: "application/json" } });
     if (!response.ok) return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, warning: `Gemini could not read this resume (${response.status}), so Career Passport created a profile-based draft.` });
     const data = await response.json();
@@ -214,7 +245,7 @@ export async function POST(request: Request) {
     } catch { /* Fall back to the profile draft below. */ }
     return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, warning: "The AI response was not valid JSON, so Career Passport created a profile-based draft." });
   }
-  const prompt = `Translate this resume into the target role's U.S.-style resume while following this template structure exactly: contact header, Education, Experience, and Leadership & Activities. Return JSON only with keys headline, contact (array of strings), education (string with institution, degree, dates, and details separated by newlines), experience (array of title/company/dates/bullets), leadershipActivities (array of title/organization/dates/bullets), skills (array), note, and match (object with similarityScore 0-100, acceptanceLikelihood 0-100 as a cautious estimate rather than a promise, matchedKeywords array, missingKeywords array, strengths array of title/evidence/reason, missing array of title/evidence/reason/correction, and steps array). Compare the actual resume to the job posting. In match.strengths and match.missing, cite the actual resume section or bullet that supports your reasoning. Omit unknown fields and sections instead of inventing employers, dates, GPA, metrics, credentials, technologies, responsibilities, activities, or achievements. Keep the writing concise and use bullet points for accomplishments. Do not copy decorative colors, photo layouts, sidebars, or template placeholder text. Explain the output is a draft. Profile: ${JSON.stringify(profile)} Resume text: ${resumePart.text} Job posting text: ${jobText || "No job posting link was provided; use the target role only."}`;
+  const prompt = `The submitted resume is in ${sourceLanguage === "auto" ? "an unknown language; detect it first" : sourceLanguage}. Translate all resume content into accurate professional English before structuring it. Preserve names, employers, credentials, dates, responsibilities, and achievements exactly; do not invent or omit facts. Then translate this resume into the target role's U.S.-style resume while following this template structure exactly: contact header, Education, Experience, and Leadership & Activities. Return JSON only with keys sourceLanguage (the detected source language), headline, contact (array of strings), education (string with institution, degree, dates, and details separated by newlines), experience (array of title/company/dates/bullets), leadershipActivities (array of title/organization/dates/bullets), skills (array), note, and match (object with similarityScore 0-100, acceptanceLikelihood 0-100 as a cautious estimate rather than a promise, matchedKeywords array, missingKeywords array, strengths array of title/evidence/reason, missing array of title/evidence/reason/correction, and steps array). Compare the translated resume content to the job posting. In match.strengths and match.missing, cite the actual translated resume section or bullet that supports your reasoning. Omit unknown fields and sections instead of inventing employers, dates, GPA, metrics, credentials, technologies, responsibilities, activities, or achievements. Do not copy decorative colors, photo layouts, sidebars, or template placeholder text. Explain the output is a draft. Profile: ${JSON.stringify(profile)} Resume text: ${resumePart.text} Job posting text: ${jobText || "No job posting link was provided; use the target role only."}`;
   const response = await requestGemini(apiKey, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } });
 
   if (!response.ok) return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, warning: `Gemini was unavailable (${response.status}), so Career Passport created a profile-based draft.` });
