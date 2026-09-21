@@ -35,11 +35,16 @@ function localDraft(profile: Profile) {
     skills: [profile.field || "Domain expertise", "Cross-functional collaboration", "Documentation", "Problem solving", "Adaptability"],
     leadershipActivities: [],
     note: "This starter draft uses your profile answers. Add or verify resume-specific achievements before applying.",
+    confidence: "profile" as const,
   };
 }
 
-function buildMatch(profile: Profile, jobText = "") {
-  const source = jobText ? "Compared with the job posting" : "Based on your profile";
+function buildMatch(profile: Profile, jobText = "", jobFetchFailed = false) {
+  const source = jobText
+    ? "Compared with the job posting"
+    : jobFetchFailed
+      ? "We couldn't read that job posting automatically (the site may block automated requests), so this comparison is based on your profile only. Try pasting the job description directly, or verify the match manually."
+      : "Based on your profile";
   const profileText = `${profile.target} ${profile.field} ${profile.title} ${profile.degree}`.toLowerCase();
   const searchable = jobText.toLowerCase();
   const jobKeywords = [...new Set((jobText.match(/[a-z][a-z+#.-]{3,}/gi) || []).map((word) => word.toLowerCase()))]
@@ -154,19 +159,20 @@ function normalizeMatch(candidate: unknown, fallback: ReturnType<typeof buildMat
   };
 }
 
-async function getJobText(link: string) {
-  if (!/^https?:\/\//i.test(link)) return "";
+async function getJobText(link: string): Promise<{ text: string; failed: boolean }> {
+  if (!/^https?:\/\//i.test(link)) return { text: "", failed: false };
   try {
     const response = await fetch(link, { signal: AbortSignal.timeout(5000), headers: { Accept: "text/html,text/plain" } });
-    if (!response.ok) return "";
+    if (!response.ok) return { text: "", failed: true };
     const html = await response.text();
-    return html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 12000);
+    const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 12000);
+    return { text, failed: text.trim().length < 50 };
   } catch {
-    return "";
+    return { text: "", failed: true };
   }
 }
 
-function normalizeResume(resume: unknown) {
+function normalizeResume(resume: unknown, confidence: "resume" | "profile") {
   if (!resume || typeof resume !== "object") return null;
   const value = resume as Record<string, unknown>;
   const education = value.education;
@@ -176,7 +182,7 @@ function normalizeResume(resume: unknown) {
       ? Object.values(education as Record<string, unknown>).filter((item) => typeof item === "string").join(" · ")
       : "International education";
 
-  return { ...value, education: normalizedEducation };
+  return { ...value, education: normalizedEducation, confidence };
 }
 
 function parseJsonResponse(text: unknown) {
@@ -223,10 +229,15 @@ export async function POST(request: Request) {
   const file = formData.get("resume");
   const sourceLanguage = String(formData.get("sourceLanguage") || profile.sourceLanguage || "auto");
   const apiKey = process.env.GEMINI_API_KEY;
-  const jobText = await getJobText(profile.applicationLink || "");
-  const match = buildMatch(profile, jobText);
+  const hasSourceDocument = file instanceof File || !!profile.resumeText;
+  const confidence: "resume" | "profile" = hasSourceDocument ? "resume" : "profile";
+  const advisory = hasSourceDocument
+    ? undefined
+    : "No resume file was uploaded, so this translation and match are based only on your profile answers. Upload a resume for a more accurate, evidence-based result.";
+  const { text: jobText, failed: jobFetchFailed } = await getJobText(profile.applicationLink || "");
+  const match = buildMatch(profile, jobText, jobFetchFailed);
 
-  if (!apiKey) return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match });
+  if (!apiKey) return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, advisory });
 
   let resumePart = { text: profile.resumeText || "No resume was uploaded; use profile facts only." };
   if (file instanceof File) {
@@ -239,8 +250,8 @@ export async function POST(request: Request) {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     try {
       const parsed = parseJsonResponse(text);
-      const resume = normalizeResume(parsed);
-      if (resume) return NextResponse.json({ source: "Gemini", resume, match: normalizeMatch(parsed.match, match) });
+      const resume = normalizeResume(parsed, confidence);
+      if (resume) return NextResponse.json({ source: "Gemini", resume, match: normalizeMatch(parsed.match, match), advisory });
     } catch { /* Fall back to the profile draft below. */ }
     return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, warning: "The AI response was not valid JSON, so Career Passport created a profile-based draft." });
   }
@@ -252,8 +263,8 @@ export async function POST(request: Request) {
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   try {
     const parsed = parseJsonResponse(text);
-    const resume = normalizeResume(parsed);
-    if (resume) return NextResponse.json({ source: "Gemini", resume, match: normalizeMatch(parsed.match, match) });
+    const resume = normalizeResume(parsed, confidence);
+    if (resume) return NextResponse.json({ source: "Gemini", resume, match: normalizeMatch(parsed.match, match), advisory });
   } catch { /* Fall back to the profile draft below. */ }
   return NextResponse.json({ source: "profile draft", resume: localDraft(profile), match, warning: "The AI response was not valid JSON, so Career Passport created a profile-based draft." });
 }

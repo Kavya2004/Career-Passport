@@ -344,6 +344,16 @@ textarea[aria-invalid="true"] {
   margin-bottom: 18px;
 }
 
+.translation-warning-badge {
+  font: 500 9px 'DM Mono', monospace;
+  color: #6b5517;
+  background: #fcf1d9;
+  border: 1px solid #d6b477;
+  border-radius: 20px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 /* Touch target sizing (44x44px minimum) */
 .generate-button,
 .download-button {
