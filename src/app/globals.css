@@ -344,6 +344,16 @@ textarea[aria-invalid="true"] {
   margin-bottom: 18px;
 }
 
+.translation-warning-badge {
+  font: 500 9px 'DM Mono', monospace;
+  color: #6b5517;
+  background: #fcf1d9;
+  border: 1px solid #d6b477;
+  border-radius: 20px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 /* Touch target sizing (44x44px minimum) */
 .generate-button,
 .download-button {
@@ -414,48 +424,6 @@ label {
   .loading-state span:first-child {
     animation: none;
     opacity: 0.7;
-  }
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e8f5e9;
-    --teal: #4ecdc4;
-    --muted: #a9c2b7;
-    --line: #355a54;
-    --paper: #1a2f2c;
-    --white: #0d3d3a;
-  }
-
-  body {
-    background: var(--paper);
-    color: var(--ink);
-  }
-
-  input:not([type="file"]),
-  select,
-  textarea {
-    background: #1a2f2c;
-    color: var(--ink);
-    border-color: #355a54;
-  }
-
-  input:not([type="file"]):focus-visible,
-  select:focus-visible,
-  textarea:focus-visible {
-    background: #0d3d3a;
-    border-color: #4ecdc4;
-  }
-
-  .keyword-match {
-    background: rgba(78, 205, 196, 0.2);
-    color: #4ecdc4;
-  }
-
-  .keyword-missing {
-    background: rgba(184, 134, 11, 0.2);
-    color: #ffd54f;
   }
 }
 

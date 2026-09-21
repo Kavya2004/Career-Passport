@@ -65,6 +65,7 @@ type GeneratedResume = {
     bullets: string[];
   }[];
   note: string;
+  confidence?: "resume" | "profile";
 };
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ function getEvidence(profile: Profile) {
 
 function getResources(profile: Profile): Resource[] {
   const role = `${profile.target} ${profile.field}`.toLowerCase();
+  const query = encodeURIComponent(profile.target || profile.field || "career skills");
   return [
     {
       title: "Credential Evaluation Services",
@@ -119,6 +121,18 @@ function getResources(profile: Profile): Resource[] {
       description: "LinkedIn, Indeed, Glassdoor",
       href: "https://www.linkedin.com/jobs/",
       reason: "Search for open positions matching your profile",
+    },
+    {
+      title: "Certifications & Courses (Coursera)",
+      description: `Coursera courses for ${profile.target || "your target role"}`,
+      href: `https://www.coursera.org/search?query=${query}`,
+      reason: "Close skill gaps with role-specific certifications and short courses",
+    },
+    {
+      title: "Certifications & Courses (LinkedIn Learning)",
+      description: `LinkedIn Learning paths for ${profile.target || "your target role"}`,
+      href: `https://www.linkedin.com/learning/search?keywords=${query}`,
+      reason: "Build credentials that strengthen your resume for U.S. employers",
     },
   ];
 }
@@ -151,6 +165,8 @@ export default function Home() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [advisory, setAdvisory] = useState<string | null>(null);
+  const [translationNotice, setTranslationNotice] = useState<string | null>(null);
 
   // ── Draft handlers (onboarding form) ───────────────────────────────────────
 
@@ -186,7 +202,8 @@ export default function Home() {
       const data = await response.json();
       setGeneratedResume(data.resume);
       setMatchReport(data.match || null);
-      if (data.warning) window.alert(data.warning);
+      setAdvisory(data.advisory || null);
+      setTranslationNotice(data.warning || null);
     } finally {
       setIsTranslating(false);
     }
@@ -843,6 +860,21 @@ export default function Home() {
                 </div>
               )}
 
+              {!isTranslating && translationNotice && (
+                <div className="translation-warning" role="status" aria-live="polite">
+                  <strong>Heads up:</strong> {translationNotice}
+                </div>
+              )}
+
+              {!isTranslating && advisory && (
+                <div className="honesty-note" role="status" aria-live="polite">
+                  <div>
+                    <strong>Verify before you apply</strong>
+                    <p>{advisory}</p>
+                  </div>
+                </div>
+              )}
+
               {generatedResume && !isTranslating && (
                 <>
                   <div
@@ -852,6 +884,16 @@ export default function Home() {
                   >
                     <span aria-hidden="true">✓</span>
                     Resume translation complete
+                    {generatedResume.confidence && (
+                      <span
+                        className={generatedResume.confidence === "resume" ? "ai-badge" : "translation-warning-badge"}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        {generatedResume.confidence === "resume"
+                          ? "✓ Extracted from your uploaded resume"
+                          : "⚠ Based on profile answers — verify details"}
+                      </span>
+                    )}
                   </div>
 
                   <div className="resume-document">
