@@ -1,5 +1,13 @@
 "use client";
 
+// This is the whole app UI. It has two screens controlled by one piece of state
+// (`profile`):
+//   - profile === null  -> the onboarding form (collect name, degree, target role, resume file)
+//   - profile !== null  -> the dashboard, with tabs for the translated resume,
+//                          job match, keyword gaps, career resources, and next steps
+// Submitting the form calls our /api/translate-resume endpoint (see that file for
+// the AI logic) and stores whatever it returns in state so the dashboard can render it.
+
 import { useState } from "react";
 import Image from "next/image";
 import {
@@ -188,6 +196,9 @@ export default function Home() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Sends the profile form (and the resume file, if one was chosen) to our backend
+  // API and stores the response. This is the one place that talks to the server —
+  // everything the dashboard shows afterward comes from `data` below.
   const translateResume = async (nextProfile: Profile, file: File | null = resumeFile) => {
     setIsTranslating(true);
     try {
