@@ -1,32 +1,28 @@
-# 🛂 Career Passport
+# 🛂 Career Passport: 
+🔗 https://career-passport-sandy.vercel.app/
 
 **Your professional identity, translated.**
 
-Career Passport takes a resume written anywhere in the world, in any language, and turns it into a clear, U.S.-style resume — then shows you exactly how well it matches a specific job, and what to fix if it doesn't.
-
-Built for **SASE Hack 2026**.
+Career Passport takes a resume written anywhere in the world, in any language, and turns it into a clear, U.S.-style resume then shows you exactly how well it matches a specific job, and what to fix if it doesn't.
 
 ---
 
 ## 🌍 Why we built this
 
-We're international students ourselves, and we've watched friends struggle to translate real, hard-won experience into something a U.S. hiring manager or an applicant-tracking system would even recognize. This problem disproportionately affects Asian immigrants and internationally trained professionals across engineering, healthcare, and business — people whose degrees and titles don't map cleanly onto American norms. A brilliant engineer from Mumbai or a nurse from Manila can get auto-rejected simply because their resume wasn't written in the "right" format or language.
-
-We didn't want another person's qualifications to get lost in translation. So we built a tool that does the translating for them — honestly, and with an explanation attached to every claim it makes.
+We're international students and we've watched friends struggle to translate real, hard-won experience into something a U.S. hiring manager or an applicant-tracking system would even recognize. This problem disproportionately affects Asian immigrants and internationally trained professionals across engineering, healthcare, and business; they are people whose degrees and titles don't map cleanly onto American norms. A brilliant engineer from Mumbai or a nurse from Manila can get auto-rejected simply because their resume wasn't written in the "right" format or language. We didn't want another person's qualifications to get lost in translation. So we built a tool that does the translating for them and with an explanation attached to every claim it makes.
 
 ---
 
 ## ✨ What it does
 
-- 📄 **Translates** uploaded resumes (PDF, DOCX, or image) into a structured U.S.-style format
-- 🌐 **Translates language**, not just format — a resume in Vietnamese, Hindi, Spanish, or another language comes back in clear English
-- 🧭 **Follows a consistent template** — Education, Experience, and Leadership & Activities
-- 🎯 **Compares your resume to a specific job posting** you link
-- 📊 **Shows a similarity score and an estimated acceptance likelihood**
-- 🔑 **Identifies matching and missing keywords** between your resume and the posting
-- 💡 **Explains its reasoning** — what's working, what's unclear, and exactly how to improve it
-- 🧑‍💼 **Recommends career resources** — credential evaluation services, licensing guidance, job boards, and role-specific courses (Coursera, LinkedIn Learning)
-- 🛡️ **Never invents facts.** If something can't be verified from what you gave it, the app says so instead of making it up — and it labels every result as either "extracted from your uploaded resume" or "based on your profile answers only."
+- Translates uploaded resumes (PDF, DOCX, or image) into a structured U.S. style format
+- Translates language not just format - a resume in Vietnamese, Hindi, Spanish, or another language comes back in clear English
+- Compares your resume to a specific job posting you link
+- Shows a similarity score and an estimated acceptance likelihood
+- Identifies matching and missing keywords** between your resume and the posting
+- Explains its reasoning like what's working, what's unclear, and exactly how to improve it
+- Recommends career resources with credential evaluation services, licensing guidance, job boards, and role-specific courses (Coursera, LinkedIn Learning)
+- Never invents facts. If something can't be verified from what you gave it, the app says so instead of making it up and it labels every result as either "extracted from your uploaded resume" or "based on your profile answers only."
 
 ---
 
